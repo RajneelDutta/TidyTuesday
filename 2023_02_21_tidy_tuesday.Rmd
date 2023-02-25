@@ -85,7 +85,7 @@ paintings_per_season %>%
 ## The distribution of Unique colours used by him in his paintings
 ```{r}
 bob_ross %>% ggplot(aes(x = num_colors)) +
-  geom_histogram(binwidth = 1, fill = "#69b3a2", color = "#e9ecef") +
+  geom_histogram(binwidth = 1, fill = "steelblue", color = "#e9ecef") +
   labs(x = "Number of Unique Colors", y = "Frequency", 
        title = "Distribution of Unique Colors in Bob Ross' Paintings")+
   theme(axis.text = element_text(size = 12),
