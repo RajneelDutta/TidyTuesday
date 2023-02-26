@@ -11,8 +11,14 @@ knitr::opts_chunk$set(echo = TRUE)
 
 library(tidyverse)
 library(tidytuesdayR)
+library(tidytext)
 
-theme_set(theme_minimal())
+library(devtools)
+#devtools::install_github('cttobin/ggthemr')
+ggthemr::ggthemr('dust')
+
+
+#theme_set(theme_minimal())
 ```
 
 # Load the weekly Data
@@ -63,6 +69,10 @@ bob_ross <- bob_ross |>
 
 head(bob_ross, 10)
 ```
+```{r}
+str(bob_ross_raw)
+```
+
 # EDA
 
 ## Did Bob Ross paint the same amount of pictures per season?
@@ -77,10 +87,9 @@ paintings_per_season %>%
   labs(title = "Number of Paintings per Season by Bob Ross",
        x = "Season",
        y = "# paintings") +
-  theme_minimal() +
   theme(axis.text = element_text(size = 12),
         axis.title = element_text(size = 14),
-        plot.title = element_text(size = 16, face = "bold"))
+        plot.title = element_text(size = 16, hjust = .5, face = "bold"))
 ```
 ## The distribution of Unique colours used by him in his paintings
 ```{r}
@@ -88,9 +97,10 @@ bob_ross %>% ggplot(aes(x = num_colors)) +
   geom_histogram(binwidth = 1, fill = "steelblue", color = "#e9ecef") +
   labs(x = "Number of Unique Colors", y = "Frequency", 
        title = "Distribution of Unique Colors in Bob Ross' Paintings")+
-  theme(axis.text = element_text(size = 12),
+  theme(
+    axis.text = element_text(size = 12),
       axis.title = element_text(size = 14),
-      plot.title = element_text(size = 16, face = "bold"))
+      plot.title = element_text(size = 16, hjust = .5, face = "bold"))
 ```
 
 ## Which colors were most commonly used each season?
@@ -109,14 +119,42 @@ freq_table <- colors_season %>%
 freq_table %>% 
   ggplot(aes(x = color, y = season, fill = count)) + 
   geom_tile() +
-  theme_minimal() +
   labs(x = "Color", y = "Season", fill = "Frequency",
        title = "Frequency of use of each colour per season") +
   theme(axis.text = element_text(size = 12),
         axis.title = element_text(size = 14),
-        plot.title = element_text(size = 16, face = "bold"),
+        plot.title = element_text(size = 16, hjust = .5,face = "bold"),
         axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
 ```
+```{r}
+word_count <- bob_ross %>% 
+  mutate(painting_title = str_to_lower(painting_title)) %>% 
+  unnest_tokens(word, painting_title) %>% 
+  count(word, sort = TRUE)
+
+# plot top 10 most frequent words
+
+data(stop_words)
+
+word_count <- word_count %>%
+  anti_join(stop_words)
+
+word_count %>% 
+  top_n(10) %>% 
+  ggplot(aes(x = fct_reorder(word, n), y = n)) +
+  geom_col(fill = "steelblue", alpha = 0.7) +
+  xlab("Words") +
+  ylab("Frequency") +
+  ggtitle("Top 10 Most Common Words in Painting Titles") +
+  coord_flip() +
+  theme(axis.text = element_text(size = 12),
+        axis.title = element_text(size = 14),
+        plot.title = element_text(size = 16, hjust = .5, face = "bold"),
+  )
+```
+
+
+
 
 # Save Image
 
