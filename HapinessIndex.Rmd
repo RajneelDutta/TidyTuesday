@@ -1,0 +1,175 @@
+---
+title: "HappinessIndex"
+author: "Rajneel Dutta"
+date: "2023-07-30"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Libraries
+```{r}
+library(tidyverse)
+library(dplyr)
+
+ggthemr::ggthemr('dust')
+```
+
+
+# Read data
+```{r}
+data_2015 <- read.csv("Datasets/HappinessIndex/2015.csv")
+data_2016 <- read.csv("Datasets/HappinessIndex/2016.csv")
+data_2017 <- read.csv("Datasets/HappinessIndex/2017.csv")
+data_2018 <- read.csv("Datasets/HappinessIndex/2018.csv")
+data_2019 <- read.csv("Datasets/HappinessIndex/2019.csv")
+
+head(data_2015, 10)
+```
+# Clean data
+```{r}
+datasets <- list(data_2015, data_2016, data_2017, data_2018, data_2019)
+
+cleaned_datasets <- lapply(datasets, janitor::clean_names)
+
+data_2015 <- cleaned_datasets[[1]]
+data_2016 <- cleaned_datasets[[2]]
+data_2017 <- cleaned_datasets[[3]]
+data_2018 <- cleaned_datasets[[4]]
+data_2019 <- cleaned_datasets[[5]]
+
+head(data_2018, 10)
+```
+
+```{r}
+data_2015_1 <- data_2015 %>% select(country, happiness_score)
+data_2016_1 <- data_2016 %>% select(country, happiness_score)
+data_2017_1 <- data_2017 %>% select(country, happiness_score)
+data_2018_1 <- data_2018 %>% select(country = country_or_region, happiness_score = score)
+data_2019_1 <- data_2019 %>% select(country = country_or_region, happiness_score = score)
+```
+
+# EDA
+## Merge the datasets
+```{r}
+data <- bind_rows(
+    mutate(data_2015_1, Year = 2015),
+    mutate(data_2016_1, Year = 2016),
+    mutate(data_2017_1, Year = 2017),
+    mutate(data_2018_1, Year = 2018),
+    mutate(data_2019_1, Year = 2019)
+)
+
+summary(data)
+```
+
+```{r}
+data %>%
+  ggplot(aes(happiness_score)) +
+  geom_histogram(bins = 30, fill = "dodgerblue", alpha = 0.7) +
+  labs(title = "Distribution of Happiness Scores", 
+       x = "Happiness Score", 
+       y = "Frequency") +
+  theme(
+    plot.title = element_text(hjust = 0.5)
+  )
+```
+```{r}
+data %>%
+  ggplot(aes(x = as.factor(Year), y = happiness_score)) +
+  geom_boxplot(outlier.colour = "firebrick", outlier.alpha = 0.8) +
+  labs(title = "Happiness Scores by Year", 
+       x = "Year", 
+       y = "Happiness Score") +
+  theme(
+    plot.title = element_text(hjust = 0.5)
+  )
+```
+```{r}
+data %>% 
+  group_by(Year) %>%
+  summarise(mean_happiness = mean(happiness_score)) %>%
+  ggplot(aes(x = Year, y = mean_happiness)) +
+  geom_line() +
+  labs(title = "Mean Happiness Score by Year", 
+       x = "Year", 
+       y = "Mean Happiness Score") +
+  theme(
+    plot.title = element_text(hjust = 0.5)
+  )
+```
+```{r}
+country_avg <- data %>%
+  group_by(country) %>%
+  summarise(avg_happiness = mean(happiness_score))
+
+# Selecting the top 5 countries with the highest average happiness scores
+top_countries <- country_avg %>%
+  arrange(desc(avg_happiness)) %>%
+  head(5) %>%
+  pull(country)
+
+filtered_data <- data %>% filter(country %in% top_countries)
+
+filtered_data <- filtered_data %>%
+  left_join(country_avg, by = "country")
+
+filtered_data %>%
+  ggplot(aes(x = reorder(country, -avg_happiness), y = happiness_score)) +
+  geom_boxplot(outlier.colour = "firebrick", outlier.alpha = 0.8) +
+  labs(title = "Happiness Scores of Top 5 Countries", 
+       x = "Country", 
+       y = "Happiness Score") +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+```
+## Merging all columns without excluding any
+```{r}
+# Function to rename columns
+rename_columns <- function(df) {
+  df %>% 
+    rename_with(~ifelse(.x == "gdp_per_capita", "economy_gdp_per_capita", .x)) %>% 
+    rename_with(~ifelse(.x == "healthy_life_expectancy", "health_life_expectancy", .x)) %>% 
+    rename_with(~ifelse(.x == "perceptions_of_corruption", "trust_government_corruption", .x))
+}
+
+# Rename the columns so that they have consistent names
+data_2015 <- rename_columns(data_2015)
+data_2016 <- rename_columns(data_2016)
+data_2017 <- rename_columns(data_2017)
+data_2018 <- rename_columns(data_2018)
+data_2019 <- rename_columns(data_2019)
+
+common_columns <- Reduce(intersect, list(names(data_2015), names(data_2016), names(data_2017), names(data_2018), names(data_2019)))
+
+data_2015_2 <- select(data_2015, all_of(common_columns))
+data_2016_2 <- select(data_2016, all_of(common_columns))
+data_2017_2 <- select(data_2017, all_of(common_columns))
+data_2018_2 <- select(data_2018, all_of(common_columns))
+data_2019_2 <- select(data_2019, all_of(common_columns))
+
+# Merging the data
+data2 <- bind_rows(
+    mutate(data_2015_2, year = 2015),
+    mutate(data_2016_2, year = 2016),
+    mutate(data_2017_2, year = 2017),
+    mutate(data_2018_2, year = 2018),
+    mutate(data_2019_2, year = 2019)
+)
+```
+
+## Factors influencing happiness
+```{r}
+# Correlation matrix
+cor_matrix <- cor(data2[, -c(1, 2)]) # Exclude categorical variables
+corrplot::corrplot(cor_matrix, method = "circle")
+
+# Multiple regression analysis
+model <- lm(happiness_score ~ ., data = data2)
+summary(model)
+```
+
