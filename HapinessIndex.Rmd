@@ -13,6 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 library(tidyverse)
 library(dplyr)
+library(mice)
 
 ggthemr::ggthemr('dust')
 ```
@@ -88,18 +89,43 @@ data %>%
   )
 ```
 ```{r}
+library(ggthemes)
+
 data %>% 
   group_by(Year) %>%
   summarise(mean_happiness = mean(happiness_score)) %>%
   ggplot(aes(x = Year, y = mean_happiness)) +
-  geom_line() +
-  labs(title = "Mean Happiness Score by Year", 
-       x = "Year", 
-       y = "Mean Happiness Score") +
+  geom_line(size = 1.5, color = "#0073C2FF") +
+  geom_point(size = 4, color = "#0073C2FF") +
+  annotate("text", x = 2016, y = max(data$mean_happiness) - 0.05, label = "2016: Happiest Year?", color = "#FC4E07", fontface = "bold", hjust = 1) +
+  labs(
+    title = "Mean Happiness Score by Year",
+    subtitle = "Take me back to 2016, the \"happiest year\" according to memes?",
+    caption = "@ Rajneel Dutta, 2023",
+    x = "Year",
+    y = "Mean Happiness Score"
+  ) +
+  theme_fivethirtyeight() +
   theme(
-    plot.title = element_text(hjust = 0.5)
+    plot.title = element_text(hjust = 0.5, size = 20, face = "bold", color = "#2C3E50"),
+    plot.subtitle = element_text(hjust = 0.5, size = 16, face = "italic", color = "#34495E"),
+    plot.caption = element_text(hjust = 1, size = 12, color = "#7F8C8D"),
+    axis.title = element_text(size = 14, color = "#5D6D7E"),
+    axis.text = element_text(size = 12, color = "#5D6D7E"),
+    plot.background = element_rect(fill = "#ECF0F1"),
+    panel.background = element_rect(fill = "#ECF0F1"),
+    panel.grid.major = element_line(color = "#D5DBDB"),
+    panel.grid.minor = element_line(color = "#D5DBDB")
   )
 ```
+
+```{r}
+ggsave(
+  filename = "Happines.png",
+  path = "./Graphs",
+  device = "png", dpi = 300)
+```
+
 ```{r}
 country_avg <- data %>%
   group_by(country) %>%
@@ -134,7 +160,9 @@ rename_columns <- function(df) {
   df %>% 
     rename_with(~ifelse(.x == "gdp_per_capita", "economy_gdp_per_capita", .x)) %>% 
     rename_with(~ifelse(.x == "healthy_life_expectancy", "health_life_expectancy", .x)) %>% 
-    rename_with(~ifelse(.x == "perceptions_of_corruption", "trust_government_corruption", .x))
+    rename_with(~ifelse(.x == "perceptions_of_corruption", "trust_government_corruption", .x)) %>%
+    rename_with(~ifelse(.x == "country_or_region", "country", .x)) %>% 
+    rename_with(~ifelse(.x == "score", "happiness_score", .x))
 }
 
 # Rename the columns so that they have consistent names
@@ -152,6 +180,12 @@ data_2017_2 <- select(data_2017, all_of(common_columns))
 data_2018_2 <- select(data_2018, all_of(common_columns))
 data_2019_2 <- select(data_2019, all_of(common_columns))
 
+data_2015_2 <- data_2015_2 %>% mutate(trust_government_corruption = as.numeric(trust_government_corruption))
+data_2016_2 <- data_2016_2 %>% mutate(trust_government_corruption = as.numeric(trust_government_corruption))
+data_2017_2 <- data_2017_2 %>% mutate(trust_government_corruption = as.numeric(trust_government_corruption))
+data_2018_2 <- data_2018_2 %>% mutate(trust_government_corruption = as.numeric(trust_government_corruption))
+data_2019_2 <- data_2019_2 %>% mutate(trust_government_corruption = as.numeric(trust_government_corruption))
+
 # Merging the data
 data2 <- bind_rows(
     mutate(data_2015_2, year = 2015),
@@ -160,6 +194,8 @@ data2 <- bind_rows(
     mutate(data_2018_2, year = 2018),
     mutate(data_2019_2, year = 2019)
 )
+
+md.pattern(data2)
 ```
 
 ## Factors influencing happiness
@@ -171,5 +207,28 @@ corrplot::corrplot(cor_matrix, method = "circle")
 # Multiple regression analysis
 model <- lm(happiness_score ~ ., data = data2)
 summary(model)
+```
+
+## Cluster Analysis
+```{r}
+dist_matrix <- dist(data2[, -c(1, 2)], method = "euclidean") # Exclude categorical variables
+hc <- hclust(dist_matrix, method = "ward.D2")
+plot(hc)
+
+# Cut the tree into clusters
+clusters <- cutree(hc, k = 5) # You can choose a different number of clusters
+data$cluster <- clusters
+
+# Visualize the clusters on a scatter plot
+data2 %>%
+  ggplot(aes(x = economy_gdp_per_capita, y = happiness_score, color = as.factor(clusters))) +
+  geom_point() +
+  labs(title = "Clusters of Countries by GDP and Happiness Score", 
+       x = "GDP per Capita", 
+       y = "Happiness Score", 
+       color = "Cluster") +
+  theme(
+    plot.title = element_text(hjust = 0.5)
+  )
 ```
 
